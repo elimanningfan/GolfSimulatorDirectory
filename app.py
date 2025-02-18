@@ -20,23 +20,23 @@ app.config.from_object(Config)
 
 # Database configuration
 database_url = os.getenv('DATABASE_URL')
-if database_url:
+if database_url and not app.debug:  # In production and DATABASE_URL is set
     try:
         # Replace postgres:// with postgresql:// for SQLAlchemy
         database_url = database_url.replace('postgres://', 'postgresql://', 1)
         app.config['SQLALCHEMY_DATABASE_URI'] = database_url
-        logger.info("Using PostgreSQL database")
+        logger.info(f"Using PostgreSQL database at {database_url.split('@')[1] if '@' in database_url else 'unknown host'}")
     except Exception as e:
         logger.error(f"Error configuring PostgreSQL database URL: {str(e)}")
-        # Fallback to SQLite
-        basedir = os.path.abspath(os.path.dirname(__file__))
-        app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.path.join(basedir, "instance", "golf_simulators.db")}'
-        logger.info("Falling back to SQLite database")
+        raise  # In production, we want to fail if database connection fails
 else:
     # For local development, use SQLite with absolute path
     basedir = os.path.abspath(os.path.dirname(__file__))
-    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.path.join(basedir, "instance", "golf_simulators.db")}'
-    logger.info("Using SQLite database for development")
+    db_path = os.path.join(basedir, "instance", "golf_simulators.db")
+    # Ensure the instance directory exists
+    os.makedirs(os.path.dirname(db_path), exist_ok=True)
+    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
+    logger.info(f"Using SQLite database at {db_path}")
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['TEMPLATES_AUTO_RELOAD'] = True
