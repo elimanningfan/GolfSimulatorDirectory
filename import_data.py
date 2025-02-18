@@ -42,6 +42,11 @@ def extract_city_from_address(full_address):
     if pd.isna(full_address):
         return None
     try:
+        # Skip if the address looks like a description (no commas)
+        if ',' not in full_address:
+            logger.warning(f"Address appears to be a description, skipping: {full_address}")
+            return None
+            
         # Expected format: "street, city, state zip"
         parts = full_address.split(',')
         if len(parts) >= 2:
@@ -103,10 +108,17 @@ def import_locations():
                     db.session.commit()
                     logger.info(f"Committed batch of {processed} records")
                 
+                # Skip rows where full_address is actually a description
+                if pd.notna(row['full_address']) and ',' not in row['full_address']:
+                    logger.warning(f"Skipping row with invalid address format: {row['name']}")
+                    skipped += 1
+                    continue
+                
                 # Extract city from full address if needed
                 city = extract_city_from_address(row['full_address'])
                 if not city:
                     logger.warning(f"Could not extract city from address: {row['full_address']}")
+                    skipped += 1
                     continue
 
                 # Create slug from business name
@@ -115,12 +127,15 @@ def import_locations():
                 # Parse hours
                 hours = parse_hours(row.get('working_hours') or row.get('working_hours_old_format'))
                 
+                # Ensure state is uppercase
+                state = row['state'].upper()[:2] if pd.notna(row['state']) else None
+                
                 # Create location object
                 location = Location(
                     business_name=row['name'],
                     address=row['full_address'],
                     city=city,
-                    state=row['state'][:2] if pd.notna(row['state']) else None,  # Take first 2 chars of state
+                    state=state,  # Now using uppercase state
                     zip_code=row['full_address'].split()[-1] if pd.notna(row['full_address']) else None,
                     phone=str(row['phone']) if pd.notna(row['phone']) else None,
                     website=str(row['site']) if pd.notna(row['site']) else None,
