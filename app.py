@@ -22,8 +22,9 @@ if database_url:
     database_url = database_url.replace('postgres://', 'postgresql://', 1)
     app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 else:
-    # For local development, use SQLite
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///instance/golf_simulators.db'
+    # For local development, use SQLite with absolute path
+    basedir = os.path.abspath(os.path.dirname(__file__))
+    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.path.join(basedir, "instance", "golf_simulators.db")}'
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['TEMPLATES_AUTO_RELOAD'] = True  # Force template reloading
