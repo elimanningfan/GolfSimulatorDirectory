@@ -2,7 +2,9 @@ services:
   - type: web
     name: golf-simulator-directory
     env: python
-    buildCommand: pip install -r requirements.txt
+    buildCommand: |
+      pip install -r requirements.txt
+      python migrations.py
     startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 2
     envVars:
       - key: PYTHON_VERSION
