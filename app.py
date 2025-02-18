@@ -104,7 +104,7 @@ class Location(db.Model):
     reviews_count = db.Column(db.Integer)
     reviews_link = db.Column(db.Text)
     location = db.Column(POINT)
-    metadata = db.Column(JSONB)
+    location_metadata = db.Column(JSONB)
 
     def to_dict(self):
         return {
@@ -125,7 +125,7 @@ class Location(db.Model):
             'reviews_count': self.reviews_count,
             'reviews_link': self.reviews_link,
             'location': self.location,
-            'metadata': self.metadata
+            'location_metadata': self.location_metadata
         }
 
 @app.route('/')

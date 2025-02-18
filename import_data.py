@@ -64,7 +64,7 @@ def import_locations():
             )
             
             # Create metadata JSONB
-            metadata = {
+            location_metadata = {
                 'type': row['type'] if pd.notna(row['type']) else None,
                 'subtypes': row['subtypes'].split(',') if pd.notna(row['subtypes']) else [],
                 'photos_count': int(row['photos_count']) if pd.notna(row['photos_count']) else 0,
@@ -89,7 +89,7 @@ def import_locations():
                 reviews_count=int(row['reviews']) if pd.notna(row['reviews']) else None,
                 reviews_link=str(row['reviews_link']) if pd.notna(row['reviews_link']) else None,
                 location=location,
-                metadata=metadata
+                location_metadata=location_metadata
             )
             db.session.add(location)
         
