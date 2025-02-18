@@ -39,9 +39,10 @@ app.debug = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'  # Enable debug 
 # Initialize extensions
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
+
+# Configure scheduler
+app.config['SCHEDULER_API_ENABLED'] = True
 scheduler = APScheduler()
-scheduler.init_app(app)
-scheduler.start()
 
 # Error handlers
 @app.errorhandler(500)
@@ -269,16 +270,15 @@ def sync_with_google_sheet():
         return False
 
 # Schedule configuration
-app.config['SCHEDULER_API_ENABLED'] = True
-
 @scheduler.task('interval', id='sync_sheet', hours=1, misfire_grace_time=900)
 def scheduled_sync():
     """
     Scheduled task to sync with Google Sheet every hour
     """
-    sync_with_google_sheet()
+    with app.app_context():
+        sync_with_google_sheet()
 
-# Start the scheduler
+# Initialize scheduler only once
 scheduler.init_app(app)
 scheduler.start()
 
@@ -357,6 +357,13 @@ def sync_sheet_command():
         logger.error("Manual sync failed")
 
 if __name__ == '__main__':
+    # Create tables within app context
     with app.app_context():
-        db.create_all()
-    app.run(debug=True) 
+        try:
+            db.create_all()
+            logger.info("Database tables created successfully")
+        except Exception as e:
+            logger.error(f"Error creating database tables: {str(e)}")
+    
+    # Run the app
+    app.run(host='0.0.0.0', port=int(os.getenv('PORT', 5000))) 
