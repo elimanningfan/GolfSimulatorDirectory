@@ -13,27 +13,37 @@ services:
       # Clean up any existing migrations
       rm -rf migrations
       # Initialize fresh migrations
-      flask db init || true
-      flask db migrate -m "initial migration" || true
-      flask db upgrade || true
+      flask db init
+      flask db migrate -m "initial migration"
+      flask db upgrade
       # Sync with Google Sheet with retries and debugging
       python -c "import logging; logging.basicConfig(level=logging.DEBUG)"
       for i in {1..3}; do
         echo "Attempt $i to sync with Google Sheet..."
-        flask sync-sheet && break || { echo "Sync failed, waiting before retry..."; sleep 5; }
+        flask sync-sheet && break || { 
+          if [ $i -eq 3 ]; then
+            echo "All sync attempts failed"
+            exit 1
+          fi
+          echo "Sync failed, waiting before retry..."
+          sleep 5
+        }
       done
-    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 2
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120 --log-level debug
+    healthCheckPath: /health
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11.0
+        value: 3.11.11
       - key: FLASK_ENV
         value: production
       - key: FLASK_APP
         value: app.py
       - key: SECRET_KEY
         generateValue: true
+      - key: GOOGLE_MAPS_API_KEY
+        sync: false
       - key: GOOGLE_SHEET_URL
-        value: https://docs.google.com/spreadsheets/d/1Qj_HyVGXqOBmVoS7CQtQKE_YVQh4FUz-bGJuLBxZVXM/export?format=csv&gid=0
+        value: https://docs.google.com/spreadsheets/d/e/2PACX-1vTaDzWL2-rrIKWpvCjGYiuF9ovmbwYfYSM5q_4YTuwG7_vPOsH7P0uVeVmfzpuQG3igxhW5nnwM3AMS/pub?output=csv
       - key: DATABASE_URL
         fromDatabase:
           name: golf-simulator-db
