@@ -6,8 +6,7 @@ buildCommand = "pip install -r requirements.txt"
 startCommand = "flask db upgrade && gunicorn app:app"
 healthcheckPath = "/"
 healthcheckTimeout = 100
-restartPolicyType = "on-failure"
-restartPolicyMaxRetries = 10
+restartPolicy = "on-failure:10"
 
 [env]
 PYTHON_VERSION = "3.11" 
