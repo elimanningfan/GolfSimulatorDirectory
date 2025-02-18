@@ -1,13 +1,11 @@
-from flask import Flask, render_template, request, jsonify
-from flask_sqlalchemy import SQLAlchemy
+import os
+import logging
 from datetime import datetime
 import pandas as pd
-import os
-from config import Config
+from flask import Flask, render_template, request, jsonify
+from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
-from flask_apscheduler import APScheduler
-import logging
-import sys
+from config import Config
 
 # Configure logging
 logging.basicConfig(
@@ -41,37 +39,12 @@ else:
     logger.info("Using SQLite database for development")
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['TEMPLATES_AUTO_RELOAD'] = True  # Force template reloading
-app.config['HOST'] = '127.0.0.1'  # Set the host
-app.config['PORT'] = 5001  # Set the port
-app.debug = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'  # Enable debug mode
+app.config['TEMPLATES_AUTO_RELOAD'] = True
 
 # Initialize extensions
-try:
-    db = SQLAlchemy(app)
-    migrate = Migrate(app, db)
-    logger.info("Database extensions initialized successfully")
-    
-    # Create tables within app context
-    with app.app_context():
-        try:
-            db.create_all()
-            logger.info("Database tables created successfully")
-        except Exception as e:
-            logger.error(f"Error creating database tables: {str(e)}")
-except Exception as e:
-    logger.error(f"Error initializing database extensions: {str(e)}")
-    raise
-
-# Configure scheduler
-scheduler = APScheduler()
-scheduler.api_enabled = True
-scheduler.init_app(app)
-
-# Only start the scheduler if we're not in debug mode and it's not already running
-if not app.debug and not scheduler.running:
-    scheduler.start()
-    logger.info("Scheduler started successfully")
+db = SQLAlchemy(app)
+migrate = Migrate(app, db)
+logger.info("Database extensions initialized successfully")
 
 # Error handlers
 @app.errorhandler(500)
@@ -308,80 +281,6 @@ def sync_with_google_sheet():
         db.session.rollback()
         return False
 
-# Schedule configuration
-@scheduler.task('interval', id='sync_sheet', hours=1, misfire_grace_time=900)
-def scheduled_sync():
-    """
-    Scheduled task to sync with Google Sheet every hour
-    """
-    with app.app_context():
-        sync_with_google_sheet()
-
-@app.cli.command("import-csv")
-def import_csv():
-    """Import locations from CSV file."""
-    if not os.path.exists('data/locations.csv'):
-        print("CSV file not found!")
-        return
-    
-    try:
-        df = pd.read_csv('data/locations.csv')
-        print(f"Found {len(df)} locations to import")
-        
-        for index, row in df.iterrows():
-            try:
-                # Extract address components from full_address
-                full_address = row['full_address']
-                print(f"Processing address: {full_address}")
-                
-                address_parts = full_address.split(',')
-                if len(address_parts) < 3:
-                    print(f"Skipping row {index}: Invalid address format")
-                    continue
-                
-                address = address_parts[0].strip()
-                city = address_parts[1].strip()
-                state_zip = address_parts[2].strip().split()
-                
-                if len(state_zip) < 2:
-                    print(f"Skipping row {index}: Invalid state/zip format")
-                    continue
-                
-                state = state_zip[0]
-                zip_code = state_zip[1]
-
-                # Create location object
-                location = Location(
-                    business_name=row['name'],
-                    address=address,
-                    city=city,
-                    state=state,
-                    zip_code=zip_code,
-                    phone=row.get('phone', ''),
-                    website=row.get('site', ''),
-                    description=row.get('description', ''),
-                    hours=row.get('working_hours_old_format', ''),
-                    slug=create_slug(row['name']),
-                    rating=row.get('rating', None),
-                    reviews=row.get('reviews', 0),
-                    reviews_link=row.get('reviews_link', ''),
-                    latitude=row.get('latitude', None),
-                    longitude=row.get('longitude', None),
-                    membership_info=row.get('membership_info', '')
-                )
-                db.session.add(location)
-                print(f"Added location: {location.business_name}")
-            
-            except Exception as row_error:
-                print(f"Error processing row {index}: {str(row_error)}")
-                continue
-        
-        db.session.commit()
-        print("Data imported successfully!")
-    except Exception as e:
-        print(f"Error importing data: {str(e)}")
-        db.session.rollback()
-
 @app.cli.command("sync-sheet")
 def sync_sheet_command():
     """Manually trigger Google Sheet sync."""
@@ -392,5 +291,4 @@ def sync_sheet_command():
         logger.error("Manual sync failed")
 
 if __name__ == '__main__':
-    # Run the app
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5001))) 
