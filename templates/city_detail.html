@@ -120,6 +120,7 @@
 </script>
 
 <script>
+let map;
 const locationData = [
     {% for location in locations %}
     {
@@ -130,30 +131,40 @@ const locationData = [
     {% endfor %}
 ];
 
-function initMap() {
+async function initMap() {
     const bounds = new google.maps.LatLngBounds();
-    const map = new google.maps.Map(document.getElementById('map'), {
+    const { Map } = await google.maps.importLibrary("maps");
+    const { AdvancedMarkerElement } = await google.maps.importLibrary("marker");
+    
+    map = new Map(document.getElementById('map'), {
         zoom: 12,
-        mapTypeId: google.maps.MapTypeId.ROADMAP
+        mapId: 'golf_simulator_map'
     });
     
-    locationData.forEach(function(loc) {
-        const marker = new google.maps.Marker({
-            position: new google.maps.LatLng(loc.lat, loc.lng),
-            map: map,
+    for (const loc of locationData) {
+        const position = new google.maps.LatLng(loc.lat, loc.lng);
+        const marker = new AdvancedMarkerElement({
+            map,
+            position,
             title: loc.title
         });
-        bounds.extend(marker.position);
-    });
+        bounds.extend(position);
+    }
     
     map.fitBounds(bounds);
-    
-    if (map.getZoom() > 15) {
-        map.setZoom(15);
-    }
+    google.maps.event.addListenerOnce(map, 'bounds_changed', () => {
+        if (map.getZoom() > 15) {
+            map.setZoom(15);
+        }
+    });
 }
+
+(g => {
+    if (typeof g.initMap === 'function') return;
+    g.initMap = initMap;
+})(globalThis);
 </script>
-<script async defer
-    src="https://maps.googleapis.com/maps/api/js?key={{ config.GOOGLE_MAPS_API_KEY }}&callback=initMap">
+<script async 
+    src="https://maps.googleapis.com/maps/api/js?key={{ config.GOOGLE_MAPS_API_KEY }}&callback=initMap&libraries=maps,marker&v=beta">
 </script>
 {% endblock %} 
