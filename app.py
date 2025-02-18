@@ -64,17 +64,14 @@ except Exception as e:
     raise
 
 # Configure scheduler
-app.config['SCHEDULER_API_ENABLED'] = True
 scheduler = APScheduler()
+scheduler.api_enabled = True
+scheduler.init_app(app)
 
-# Initialize scheduler only in production
-if not app.debug:
-    try:
-        scheduler.init_app(app)
-        scheduler.start()
-        logger.info("Scheduler initialized and started")
-    except Exception as e:
-        logger.error(f"Error initializing scheduler: {str(e)}")
+# Only start the scheduler if we're not in debug mode and it's not already running
+if not app.debug and not scheduler.running:
+    scheduler.start()
+    logger.info("Scheduler started successfully")
 
 # Error handlers
 @app.errorhandler(500)
