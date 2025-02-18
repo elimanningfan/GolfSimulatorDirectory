@@ -7,9 +7,14 @@ from config import Config
 from flask_migrate import Migrate
 from flask_apscheduler import APScheduler
 import logging
+import sys
 
 # Setup logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s %(levelname)s: %(message)s',
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
@@ -22,18 +27,23 @@ if database_url:
         # Replace postgres:// with postgresql:// for SQLAlchemy
         database_url = database_url.replace('postgres://', 'postgresql://', 1)
         app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+        logger.info("Using PostgreSQL database")
     except Exception as e:
-        logger.error(f"Error configuring database URL: {str(e)}")
+        logger.error(f"Error configuring PostgreSQL database URL: {str(e)}")
         # Fallback to SQLite
         basedir = os.path.abspath(os.path.dirname(__file__))
         app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.path.join(basedir, "instance", "golf_simulators.db")}'
+        logger.info("Falling back to SQLite database")
 else:
     # For local development, use SQLite with absolute path
     basedir = os.path.abspath(os.path.dirname(__file__))
     app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.path.join(basedir, "instance", "golf_simulators.db")}'
+    logger.info("Using SQLite database for development")
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['TEMPLATES_AUTO_RELOAD'] = True  # Force template reloading
+app.config['HOST'] = '127.0.0.1'  # Set the host
+app.config['PORT'] = 5001  # Set the port
 app.debug = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'  # Enable debug mode
 
 # Initialize extensions
@@ -101,13 +111,23 @@ class Location(db.Model):
 
 @app.route('/')
 def home():
-    locations = Location.query.all()
-    return render_template('home.html', locations=locations)
+    try:
+        locations = Location.query.all()
+        logger.info(f"Retrieved {len(locations)} locations for home page")
+        return render_template('home.html', locations=locations)
+    except Exception as e:
+        logger.error(f"Error in home route: {str(e)}")
+        return render_template('500.html'), 500
 
 @app.route('/location/<slug>')
 def location_detail(slug):
-    location = Location.query.filter_by(slug=slug).first_or_404()
-    return render_template('location_detail.html', location=location)
+    try:
+        location = Location.query.filter_by(slug=slug).first_or_404()
+        logger.info(f"Retrieved location details for slug: {slug}")
+        return render_template('location_detail.html', location=location)
+    except Exception as e:
+        logger.error(f"Error in location_detail route for slug {slug}: {str(e)}")
+        return render_template('500.html'), 500
 
 @app.route('/search')
 def search():
