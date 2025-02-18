@@ -298,10 +298,6 @@ def scheduled_sync():
     with app.app_context():
         sync_with_google_sheet()
 
-# Initialize scheduler only once
-scheduler.init_app(app)
-scheduler.start()
-
 @app.cli.command("import-csv")
 def import_csv():
     """Import locations from CSV file."""
@@ -382,6 +378,9 @@ if __name__ == '__main__':
         try:
             db.create_all()
             logger.info("Database tables created successfully")
+            # Initialize and start scheduler
+            scheduler.init_app(app)
+            scheduler.start()
         except Exception as e:
             logger.error(f"Error creating database tables: {str(e)}")
     
