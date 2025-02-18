@@ -14,10 +14,19 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 app.config.from_object(Config)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///golf_simulators.db'
+
+# Database configuration
+database_url = os.getenv('DATABASE_URL')
+if database_url and database_url.startswith('postgres://'):
+    # Replace postgres:// with postgresql:// for SQLAlchemy
+    database_url = database_url.replace('postgres://', 'postgresql://', 1)
+    app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+else:
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///golf_simulators.db'
+
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['TEMPLATES_AUTO_RELOAD'] = True  # Force template reloading
-app.debug = True  # Enable debug mode
+app.debug = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'  # Enable debug mode
 db = SQLAlchemy(app)
 scheduler = APScheduler()
 
