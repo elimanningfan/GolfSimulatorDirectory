@@ -20,9 +20,9 @@ app.config.from_object(Config)
 
 # Database configuration
 database_url = os.getenv('DATABASE_URL')
-is_production = os.getenv('FLASK_ENV') == 'production' or not app.debug
+is_railway = os.getenv('RAILWAY_ENVIRONMENT_NAME') is not None
 
-if database_url and is_production:  # In production and DATABASE_URL is set
+if database_url and is_railway:  # We're on Railway
     try:
         # Replace postgres:// with postgresql:// for SQLAlchemy
         database_url = database_url.replace('postgres://', 'postgresql://', 1)
