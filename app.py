@@ -17,12 +17,13 @@ app.config.from_object(Config)
 
 # Database configuration
 database_url = os.getenv('DATABASE_URL')
-if database_url and database_url.startswith('postgres://'):
+if database_url:
     # Replace postgres:// with postgresql:// for SQLAlchemy
     database_url = database_url.replace('postgres://', 'postgresql://', 1)
     app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 else:
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///golf_simulators.db'
+    # For local development, use SQLite
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///instance/golf_simulators.db'
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['TEMPLATES_AUTO_RELOAD'] = True  # Force template reloading
