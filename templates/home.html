@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}Golf Simulator Directory - Find Indoor Golf Locations Near You{% endblock %}
+
+{% block meta_description %}Discover golf simulator locations near you. Browse our comprehensive directory of indoor golf facilities, perfect for practice or entertainment.{% endblock %}
+
+{% block content %}
+<section class="hero-section">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-8 text-center">
+                <h1 class="display-4 mb-4">Find Golf Simulator Locations Near You</h1>
+                <div class="search-box">
+                    <form action="{{ url_for('search') }}" method="get">
+                        <div class="input-group">
+                            <input type="text" name="q" class="form-control form-control-lg" placeholder="Search by city, state, or business name">
+                            <button class="btn btn-primary btn-lg" type="submit">
+                                <i class="fas fa-search"></i> Search
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<div class="container mt-5">
+    <h2 class="mb-4">Featured Locations</h2>
+    <div class="row">
+        {% for location in locations %}
+        <div class="col-md-4 mb-4">
+            <div class="card location-card h-100">
+                <div class="card-body">
+                    <h5 class="card-title">{{ location.business_name }}</h5>
+                    <p class="card-text">
+                        <i class="fas fa-map-marker-alt text-primary"></i> 
+                        {{ location.city }}, {{ location.state }}
+                    </p>
+                    {% if location.description %}
+                    <p class="card-text">{{ location.description[:100] }}...</p>
+                    {% endif %}
+                    <a href="{{ url_for('location_detail', slug=location.slug) }}" class="btn btn-outline-primary">
+                        View Details
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %} 

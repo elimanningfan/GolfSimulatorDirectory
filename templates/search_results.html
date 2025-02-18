@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block title %}Search Results for "{{ query }}" - Golf Simulator Directory{% endblock %}
+
+{% block meta_description %}Browse golf simulator locations matching "{{ query }}". Find indoor golf facilities in your area with detailed information and reviews.{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-md-4 mb-4">
+            <div class="card">
+                <div class="card-body">
+                    <h2 class="h5 mb-3">Search</h2>
+                    <form action="{{ url_for('search') }}" method="get">
+                        <div class="mb-3">
+                            <label for="searchQuery" class="form-label">Search Query</label>
+                            <input type="text" class="form-control" id="searchQuery" name="q" value="{{ query }}">
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-search"></i> Search
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-8">
+            <h1 class="mb-4">
+                {% if query %}
+                Search Results for "{{ query }}"
+                {% else %}
+                All Locations
+                {% endif %}
+            </h1>
+
+            {% if locations %}
+            <div class="mb-4">
+                Found {{ locations|length }} location{{ 's' if locations|length != 1 else '' }}
+            </div>
+
+            {% for location in locations %}
+            <div class="card mb-4 location-card">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <h2 class="h5 mb-3">
+                                <a href="{{ url_for('location_detail', slug=location.slug) }}" class="text-decoration-none">
+                                    {{ location.business_name }}
+                                </a>
+                            </h2>
+                            <p class="mb-2">
+                                <i class="fas fa-map-marker-alt text-primary"></i>
+                                {{ location.address }}<br>
+                                {{ location.city }}, {{ location.state }} {{ location.zip_code }}
+                            </p>
+                            {% if location.phone %}
+                            <p class="mb-2">
+                                <i class="fas fa-phone text-primary"></i>
+                                <a href="tel:{{ location.phone }}" class="text-decoration-none">{{ location.phone }}</a>
+                            </p>
+                            {% endif %}
+                            {% if location.description %}
+                            <p class="mb-0">{{ location.description[:150] }}...</p>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-4 text-md-end">
+                            <a href="{{ url_for('location_detail', slug=location.slug) }}" class="btn btn-outline-primary mb-2">
+                                View Details
+                            </a>
+                            {% if location.website %}
+                            <a href="{{ location.website }}" class="btn btn-outline-secondary d-block" target="_blank" rel="noopener noreferrer">
+                                Visit Website
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+
+            {% else %}
+            <div class="alert alert-info">
+                No locations found matching your search criteria. Try adjusting your search terms.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %} 

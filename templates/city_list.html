@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}Golf Simulator Locations by City{% endblock %}
+
+{% block meta_description %}Find golf simulator locations in cities across Oregon. Browse our comprehensive directory of indoor golf facilities by city.{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('home') }}">Home</a></li>
+            <li class="breadcrumb-item active">Cities</li>
+        </ol>
+    </nav>
+
+    <h1 class="mb-4">Golf Simulator Locations by City</h1>
+    
+    <div class="row">
+        {% for city in cities %}
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h2 class="h5 mb-3">
+                        <a href="{{ url_for('city_detail', city_slug=city.slug) }}" class="text-decoration-none">
+                            {{ city.city }}, {{ city.state }}
+                        </a>
+                    </h2>
+                    <p class="mb-0">
+                        <span class="badge bg-primary">{{ city.count }} location{{ 's' if city.count != 1 else '' }}</span>
+                    </p>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %} 

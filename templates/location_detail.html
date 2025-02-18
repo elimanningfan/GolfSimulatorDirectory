@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+
+{% block title %}{{ location.business_name }} - Golf Simulator Location in {{ location.city }}, {{ location.state }}{% endblock %}
+
+{% block meta_description %}Visit {{ location.business_name }} in {{ location.city }}, {{ location.state }} for an exceptional indoor golf experience. Find location details, hours, and contact information.{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('home') }}">Home</a></li>
+            <li class="breadcrumb-item active">{{ location.business_name }}</li>
+        </ol>
+    </nav>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <h1 class="mb-4">{{ location.business_name }}</h1>
+            
+            {% if location.description %}
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h2 class="h5 mb-3">About This Location</h2>
+                    <p>{{ location.description }}</p>
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h2 class="h5 mb-3">Location Information</h2>
+                    <p>
+                        <i class="fas fa-map-marker-alt text-primary"></i>
+                        {{ location.address }}<br>
+                        {{ location.city }}, {{ location.state }} {{ location.zip_code }}
+                    </p>
+                    
+                    {% if location.phone %}
+                    <p>
+                        <i class="fas fa-phone text-primary"></i>
+                        <a href="tel:{{ location.phone }}" class="text-decoration-none">{{ location.phone }}</a>
+                    </p>
+                    {% endif %}
+
+                    {% if location.website %}
+                    <p>
+                        <i class="fas fa-globe text-primary"></i>
+                        <a href="{{ location.website }}" target="_blank" rel="noopener noreferrer" class="text-decoration-none">
+                            Visit Website
+                        </a>
+                    </p>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if location.hours %}
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h2 class="h5 mb-3">Business Hours</h2>
+                    <p class="mb-0">{{ location.hours }}</p>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if location.reviews_link %}
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h2 class="h5 mb-3">
+                        Reviews 
+                        {% if location.rating %}
+                        <span class="text-muted">
+                            ({{ location.rating }} ★ - {{ location.reviews }} reviews)
+                        </span>
+                        {% endif %}
+                    </h2>
+                    <a href="{{ location.reviews_link }}" 
+                       class="btn btn-outline-primary mb-3"
+                       target="_blank"
+                       rel="noopener noreferrer">
+                        <i class="fas fa-star"></i> Read {{ location.reviews }} Reviews on Google
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h2 class="h5 mb-3">Location</h2>
+                    <div class="ratio ratio-4x3 mb-3">
+                        <iframe
+                            width="100%"
+                            height="100%"
+                            frameborder="0"
+                            style="border:0"
+                            src="https://www.google.com/maps/embed/v1/place?key={{ config.GOOGLE_MAPS_API_KEY }}&q={{ location.latitude }},{{ location.longitude }}"
+                            allowfullscreen>
+                        </iframe>
+                    </div>
+                    <a href="https://www.google.com/maps/search/?api=1&query={{ location.latitude }},{{ location.longitude }}"
+                       class="btn btn-primary btn-sm w-100"
+                       target="_blank"
+                       rel="noopener noreferrer">
+                        <i class="fas fa-directions"></i> Get Directions
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script type="application/ld+json">
+{
+    "@context": "http://schema.org",
+    "@type": "LocalBusiness",
+    "name": "{{ location.business_name }}",
+    "address": {
+        "@type": "PostalAddress",
+        "streetAddress": "{{ location.address }}",
+        "addressLocality": "{{ location.city }}",
+        "addressRegion": "{{ location.state }}",
+        "postalCode": "{{ location.zip_code }}"
+    },
+    {% if location.phone %}
+    "telephone": "{{ location.phone }}",
+    {% endif %}
+    {% if location.website %}
+    "url": "{{ location.website }}",
+    {% endif %}
+    "description": "{{ location.description }}"
+}
+</script>
+{% endblock %} 

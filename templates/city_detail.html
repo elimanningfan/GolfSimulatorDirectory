@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+
+{% block title %}Golf Simulator Locations in {{ city_name }}, {{ state_name }}{% endblock %}
+
+{% block meta_description %}Find {{ location_count }} golf simulator locations in {{ city_name }}, {{ state_name }}. Browse reviews, hours, and book tee times at indoor golf facilities.{% endblock %}
+
+{% block content %}
+<section class="hero-section">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-8 text-center">
+                <h1 class="display-4 mb-4">Golf Simulator Locations in {{ city_name }}</h1>
+                <p class="lead">{{ location_count }} Location{{ 's' if location_count != 1 else '' }} in {{ city_name }}, {{ state_name }}</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<div class="container mt-5">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('home') }}">Home</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('city_list') }}">Cities</a></li>
+            <li class="breadcrumb-item active">{{ city_name }}, {{ state_name }}</li>
+        </ol>
+    </nav>
+
+    <div class="row mb-5">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body p-0">
+                    <div id="map" class="ratio ratio-21x9">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        {% for location in locations %}
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h2 class="h4 mb-3">
+                        <a href="{{ url_for('location_detail', slug=location.slug) }}" class="text-decoration-none">
+                            {{ location.business_name }}
+                        </a>
+                        {% if location.rating %}
+                        <span class="text-muted h6">
+                            ({{ location.rating }} ★ - {{ location.reviews }} reviews)
+                        </span>
+                        {% endif %}
+                    </h2>
+                    
+                    {% if location.description %}
+                    <p class="mb-3">{{ location.description }}</p>
+                    {% endif %}
+
+                    <p class="mb-3">
+                        <i class="fas fa-map-marker-alt text-primary"></i>
+                        {{ location.address }}<br>
+                        {{ location.city }}, {{ location.state }} {{ location.zip_code }}
+                    </p>
+                    
+                    {% if location.phone %}
+                    <p class="mb-3">
+                        <i class="fas fa-phone text-primary"></i>
+                        <a href="tel:{{ location.phone }}" class="text-decoration-none">{{ location.phone }}</a>
+                    </p>
+                    {% endif %}
+
+                    <div class="mt-3">
+                        <a href="{{ url_for('location_detail', slug=location.slug) }}" class="btn btn-outline-primary me-2">
+                            View Details
+                        </a>
+                        {% if location.website %}
+                        <a href="{{ location.website }}" class="btn btn-outline-secondary" target="_blank" rel="noopener noreferrer">
+                            Visit Website
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<script type="application/ld+json">
+{
+    "@context": "http://schema.org",
+    "@type": "ItemList",
+    "itemListElement": [
+        {% for location in locations %}
+        {
+            "@type": "ListItem",
+            "position": {{ loop.index }},
+            "item": {
+                "@type": "LocalBusiness",
+                "name": "{{ location.business_name }}",
+                "address": {
+                    "@type": "PostalAddress",
+                    "streetAddress": "{{ location.address }}",
+                    "addressLocality": "{{ location.city }}",
+                    "addressRegion": "{{ location.state }}",
+                    "postalCode": "{{ location.zip_code }}"
+                }
+                {% if location.rating %},
+                "aggregateRating": {
+                    "@type": "AggregateRating",
+                    "ratingValue": "{{ location.rating }}",
+                    "reviewCount": "{{ location.reviews }}"
+                }
+                {% endif %}
+            }
+        }{{ "," if not loop.last }}
+        {% endfor %}
+    ]
+}
+</script>
+
+<script>
+const locationData = [
+    {% for location in locations %}
+    {
+        lat: Number({{ location.latitude }}),
+        lng: Number({{ location.longitude }}),
+        title: {{ location.business_name|tojson|safe }}
+    }{% if not loop.last %},{% endif %}
+    {% endfor %}
+];
+
+function initMap() {
+    const bounds = new google.maps.LatLngBounds();
+    const map = new google.maps.Map(document.getElementById('map'), {
+        zoom: 12,
+        mapTypeId: google.maps.MapTypeId.ROADMAP
+    });
+    
+    locationData.forEach(function(loc) {
+        const marker = new google.maps.Marker({
+            position: new google.maps.LatLng(loc.lat, loc.lng),
+            map: map,
+            title: loc.title
+        });
+        bounds.extend(marker.position);
+    });
+    
+    map.fitBounds(bounds);
+    
+    if (map.getZoom() > 15) {
+        map.setZoom(15);
+    }
+}
+</script>
+<script async defer
+    src="https://maps.googleapis.com/maps/api/js?key={{ config.GOOGLE_MAPS_API_KEY }}&callback=initMap">
+</script>
+{% endblock %} 
