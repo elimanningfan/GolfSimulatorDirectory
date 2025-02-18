@@ -1,6 +1,12 @@
 import pandas as pd
 from app import app, db, Location
 from slugify import slugify
+import re
+
+def extract_zip_code(address):
+    # Try to extract zip code from address
+    zip_match = re.search(r'(\d{5}(?:-\d{4})?)', address)
+    return zip_match.group(1) if zip_match else ''
 
 def import_locations():
     with app.app_context():
@@ -12,20 +18,27 @@ def import_locations():
         
         # Process each row
         for _, row in df.iterrows():
+            # Skip the last few rows that contain example data
+            if pd.isna(row['state']) or row['state'] == 'CA':
+                continue
+                
             # Create slug from business name
             slug = slugify(row['name'])
+            
+            # Extract zip code from full_address
+            zip_code = extract_zip_code(row['full_address'])
             
             # Create location object
             location = Location(
                 business_name=row['name'],
                 address=row['full_address'],
-                city=row['city'] if pd.notna(row['city']) else '',
-                state=row['state'] if pd.notna(row['state']) else '',
-                zip_code='',  # You might want to extract this from full_address
+                city=row['full_address'].split(',')[1].strip() if ',' in row['full_address'] else '',
+                state=row['state'],
+                zip_code=zip_code,
                 phone=row['phone'] if pd.notna(row['phone']) else None,
                 website=row['site'] if pd.notna(row['site']) else None,
                 description=row['description'] if pd.notna(row['description']) else None,
-                hours=row['working_hours'] if pd.notna(row['working_hours']) else None,
+                hours=row['working_hours_old_format'] if pd.notna(row['working_hours_old_format']) else None,
                 slug=slug,
                 rating=float(row['rating']) if pd.notna(row['rating']) else None,
                 reviews=int(row['reviews']) if pd.notna(row['reviews']) else None,
