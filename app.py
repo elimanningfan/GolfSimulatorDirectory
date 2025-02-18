@@ -18,9 +18,15 @@ app.config.from_object(Config)
 # Database configuration
 database_url = os.getenv('DATABASE_URL')
 if database_url:
-    # Replace postgres:// with postgresql:// for SQLAlchemy
-    database_url = database_url.replace('postgres://', 'postgresql://', 1)
-    app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+    try:
+        # Replace postgres:// with postgresql:// for SQLAlchemy
+        database_url = database_url.replace('postgres://', 'postgresql://', 1)
+        app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+    except Exception as e:
+        logger.error(f"Error configuring database URL: {str(e)}")
+        # Fallback to SQLite
+        basedir = os.path.abspath(os.path.dirname(__file__))
+        app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.path.join(basedir, "instance", "golf_simulators.db")}'
 else:
     # For local development, use SQLite with absolute path
     basedir = os.path.abspath(os.path.dirname(__file__))
@@ -29,10 +35,23 @@ else:
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['TEMPLATES_AUTO_RELOAD'] = True  # Force template reloading
 app.debug = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'  # Enable debug mode
-db = SQLAlchemy(app)
-scheduler = APScheduler()
 
+# Initialize extensions
+db = SQLAlchemy(app)
 migrate = Migrate(app, db)
+scheduler = APScheduler()
+scheduler.init_app(app)
+scheduler.start()
+
+# Error handlers
+@app.errorhandler(500)
+def internal_error(error):
+    logger.error(f"Internal Server Error: {str(error)}")
+    return render_template('500.html'), 500
+
+@app.errorhandler(404)
+def not_found_error(error):
+    return render_template('404.html'), 404
 
 # Google Sheet URL
 SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTaDzWL2-rrIKWpvCjGYiuF9ovmbwYfYSM5q_4YTuwG7_vPOsH7P0uVeVmfzpuQG3igxhW5nnwM3AMS/pub?output=csv"
