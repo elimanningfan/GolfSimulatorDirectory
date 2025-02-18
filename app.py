@@ -68,7 +68,7 @@ def not_found_error(error):
     return render_template('404.html'), 404
 
 # Google Sheet URL (public CSV export)
-SHEET_URL = os.getenv('GOOGLE_SHEET_URL', 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ7Zfd9J7uhAhKoHLfqWrjnOVqjGvK9YQVZNFe4CjnQDGqRDi_HHf_ys4fJMmborCNKYxpwqrQHx2QF/pub?output=csv')
+SHEET_URL = os.getenv('GOOGLE_SHEET_URL', 'https://docs.google.com/spreadsheets/d/1Qj_HyVGXqOBmVoS7CQtQKE_YVQh4FUz-bGJuLBxZVXM/export?format=csv&gid=0')
 
 class POINT(TypeDecorator):
     impl = String
@@ -233,17 +233,28 @@ def sync_with_google_sheet():
     """
     try:
         logger.info("Starting sync with Google Sheet")
+        logger.info(f"Using sheet URL: {SHEET_URL}")
+        
         # Read the CSV data from Google Sheets
-        df = pd.read_csv(SHEET_URL)
-        logger.info(f"Read {len(df)} rows from Google Sheet")
+        try:
+            df = pd.read_csv(SHEET_URL)
+            logger.info(f"Successfully read {len(df)} rows from Google Sheet")
+            logger.info(f"Columns found: {', '.join(df.columns)}")
+            logger.info(f"First row sample: {df.iloc[0].to_dict()}")
+        except Exception as e:
+            logger.error(f"Error reading Google Sheet: {str(e)}")
+            return False
         
         # Process each row
         current_time = datetime.utcnow()
         updates = 0
         new_records = 0
+        errors = 0
         
-        for _, row in df.iterrows():
+        for index, row in df.iterrows():
             try:
+                logger.debug(f"Processing row {index + 1}: {row['name']}")
+                
                 # Create slug for the business
                 business_slug = slugify(row['name'])
                 
@@ -252,13 +263,16 @@ def sync_with_google_sheet():
                 if pd.notna(row.get('working_hours')):
                     try:
                         hours = json.loads(row['working_hours'].replace("'", '"'))
+                        logger.debug(f"Parsed hours for {row['name']}: {hours}")
                     except:
                         hours = row['working_hours']
+                        logger.debug(f"Using raw hours for {row['name']}: {hours}")
                 
                 # Create point from lat/lon
                 location_point = None
                 if pd.notna(row.get('latitude')) and pd.notna(row.get('longitude')):
                     location_point = f"({row['latitude']},{row['longitude']})"
+                    logger.debug(f"Created location point for {row['name']}: {location_point}")
                 
                 # Extract city from address
                 city = None
@@ -266,13 +280,22 @@ def sync_with_google_sheet():
                     parts = row['full_address'].split(',')
                     if len(parts) >= 2:
                         city = parts[1].strip().split()[0]
+                        logger.debug(f"Extracted city for {row['name']}: {city}")
+                    else:
+                        logger.warning(f"Could not extract city from address for {row['name']}: {row['full_address']}")
+                
+                # Ensure state is properly formatted
+                state = None
+                if pd.notna(row.get('state')):
+                    state = row['state'].upper()[:2]
+                    logger.debug(f"Formatted state for {row['name']}: {state}")
                 
                 # Prepare location data
                 location_data = {
                     'business_name': row['name'],
                     'address': row['full_address'] if pd.notna(row.get('full_address')) else None,
                     'city': city,
-                    'state': row['state'].upper()[:2] if pd.notna(row.get('state')) else None,
+                    'state': state,
                     'zip_code': row['full_address'].split()[-1] if pd.notna(row.get('full_address')) else None,
                     'phone': str(row['phone']) if pd.notna(row.get('phone')) else None,
                     'website': str(row['site']) if pd.notna(row.get('site')) else None,
@@ -301,28 +324,34 @@ def sync_with_google_sheet():
                     for key, value in location_data.items():
                         setattr(location, key, value)
                     updates += 1
-                    logger.info(f"Updated: {row['name']}")
+                    logger.info(f"Updated existing location: {row['name']}")
                 else:
                     # Create new location
                     location_data['slug'] = business_slug
                     new_location = Location(**location_data)
                     db.session.add(new_location)
                     new_records += 1
-                    logger.info(f"Added new: {row['name']}")
+                    logger.info(f"Added new location: {row['name']}")
                 
                 # Commit every 10 records
                 if (updates + new_records) % 10 == 0:
                     db.session.commit()
-                    logger.info(f"Committed batch. Updates: {updates}, New: {new_records}")
+                    logger.info(f"Committed batch. Updates: {updates}, New: {new_records}, Errors: {errors}")
                 
             except Exception as e:
-                logger.error(f"Error processing row for {row.get('name', 'unknown')}: {str(e)}")
+                logger.error(f"Error processing row {index + 1} for {row.get('name', 'unknown')}: {str(e)}")
+                errors += 1
                 continue
         
         # Final commit
-        db.session.commit()
-        logger.info(f"Sync completed. Updated {updates} records, added {new_records} new records.")
-        return True
+        try:
+            db.session.commit()
+            logger.info(f"Sync completed. Updated: {updates}, New: {new_records}, Errors: {errors}")
+            return True
+        except Exception as e:
+            logger.error(f"Error during final commit: {str(e)}")
+            db.session.rollback()
+            return False
         
     except Exception as e:
         logger.error(f"Error during sync: {str(e)}")

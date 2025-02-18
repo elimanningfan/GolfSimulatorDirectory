@@ -16,7 +16,8 @@ services:
       flask db init || true
       flask db migrate -m "initial migration" || true
       flask db upgrade || true
-      # Sync with Google Sheet with retries
+      # Sync with Google Sheet with retries and debugging
+      python -c "import logging; logging.basicConfig(level=logging.DEBUG)"
       for i in {1..3}; do
         echo "Attempt $i to sync with Google Sheet..."
         flask sync-sheet && break || { echo "Sync failed, waiting before retry..."; sleep 5; }
@@ -32,7 +33,7 @@ services:
       - key: SECRET_KEY
         generateValue: true
       - key: GOOGLE_SHEET_URL
-        value: https://docs.google.com/spreadsheets/d/e/2PACX-1vQ7Zfd9J7uhAhKoHLfqWrjnOVqjGvK9YQVZNFe4CjnQDGqRDi_HHf_ys4fJMmborCNKYxpwqrQHx2QF/pub?output=csv
+        value: https://docs.google.com/spreadsheets/d/1Qj_HyVGXqOBmVoS7CQtQKE_YVQh4FUz-bGJuLBxZVXM/export?format=csv&gid=0
       - key: DATABASE_URL
         fromDatabase:
           name: golf-simulator-db
