@@ -7,6 +7,7 @@ from sqlalchemy import text
 from datetime import datetime
 import logging
 import sys
+from sqlalchemy.exc import SQLAlchemyError
 
 logging.basicConfig(
     level=logging.INFO,
@@ -40,13 +41,16 @@ def extract_city_from_address(full_address):
     """Extract city from full address."""
     if pd.isna(full_address):
         return None
-    # Expected format: "street, city, state zip"
-    parts = full_address.split(',')
-    if len(parts) >= 2:
-        city = parts[1].strip()
-        # Remove state and zip if they're in the city part
-        city = city.split(' ')[0]
-        return city
+    try:
+        # Expected format: "street, city, state zip"
+        parts = full_address.split(',')
+        if len(parts) >= 2:
+            city = parts[1].strip()
+            # Remove state and zip if they're in the city part
+            city = city.split(' ')[0]
+            return city
+    except Exception as e:
+        logger.error(f"Error extracting city from address '{full_address}': {str(e)}")
     return None
 
 def create_point(lat, lon):
@@ -74,11 +78,15 @@ def import_locations():
         df = pd.read_csv('data/locations.csv')
         logger.info(f"CSV columns found: {', '.join(df.columns)}")
         
+        # Start a new transaction
+        logger.info("Starting new transaction...")
+        
         # Clear existing data
         logger.info("Clearing existing data...")
         try:
-            db.session.execute(text('DELETE FROM locations'))
+            db.session.execute(text('TRUNCATE TABLE locations CASCADE'))
             db.session.commit()
+            logger.info("Existing data cleared successfully")
         except Exception as e:
             logger.warning(f"Error clearing existing data (this is normal for first run): {str(e)}")
             db.session.rollback()
@@ -90,6 +98,11 @@ def import_locations():
         
         for _, row in df.iterrows():
             try:
+                # Start a new transaction for each batch
+                if processed % 50 == 0:
+                    db.session.commit()
+                    logger.info(f"Committed batch of {processed} records")
+                
                 # Extract city from full address if needed
                 city = extract_city_from_address(row['full_address'])
                 if not city:
@@ -135,11 +148,11 @@ def import_locations():
                 processed += 1
                 logger.info(f"Successfully processed: {row['name']}")
                 
-                # Commit every 50 records
-                if processed % 50 == 0:
-                    db.session.commit()
-                    logger.info(f"Processed {processed} records...")
-                
+            except SQLAlchemyError as e:
+                logger.error(f"Database error processing row for {row.get('name', 'unknown')}: {str(e)}")
+                db.session.rollback()
+                skipped += 1
+                continue
             except Exception as e:
                 logger.error(f"Error processing row for {row.get('name', 'unknown')}: {str(e)}")
                 logger.error(f"Row data: {row.to_dict()}")
@@ -147,9 +160,14 @@ def import_locations():
                 continue
         
         # Final commit
-        db.session.commit()
-        logger.info(f"Data import completed. Processed: {processed}, Skipped: {skipped}")
-        return True
+        try:
+            db.session.commit()
+            logger.info(f"Data import completed. Processed: {processed}, Skipped: {skipped}")
+            return True
+        except SQLAlchemyError as e:
+            logger.error(f"Error during final commit: {str(e)}")
+            db.session.rollback()
+            return False
         
     except Exception as e:
         logger.error(f"Error during import: {str(e)}")
