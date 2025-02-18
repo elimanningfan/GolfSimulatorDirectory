@@ -21,9 +21,32 @@ def parse_hours(hours_str):
         return None
     try:
         if isinstance(hours_str, str):
-            return json.loads(hours_str.replace("'", '"'))
-    except:
+            # Try to parse the JSON string
+            if hours_str.startswith('{'):
+                return json.loads(hours_str.replace("'", '"'))
+            # Parse the old format (pipe-separated)
+            hours_dict = {}
+            for pair in hours_str.split('|'):
+                if ':' in pair:
+                    day, time = pair.split(':', 1)
+                    hours_dict[day] = time
+            return hours_dict if hours_dict else None
+    except Exception as e:
+        logger.warning(f"Error parsing hours: {str(e)}")
         return None
+    return None
+
+def extract_city_from_address(full_address):
+    """Extract city from full address."""
+    if pd.isna(full_address):
+        return None
+    # Expected format: "street, city, state zip"
+    parts = full_address.split(',')
+    if len(parts) >= 2:
+        city = parts[1].strip()
+        # Remove state and zip if they're in the city part
+        city = city.split(' ')[0]
+        return city
     return None
 
 def create_point(lat, lon):
@@ -49,6 +72,7 @@ def import_locations():
         # Read the CSV file
         logger.info("Reading locations data from CSV...")
         df = pd.read_csv('data/locations.csv')
+        logger.info(f"CSV columns found: {', '.join(df.columns)}")
         
         # Clear existing data
         logger.info("Clearing existing data...")
@@ -66,19 +90,25 @@ def import_locations():
         
         for _, row in df.iterrows():
             try:
+                # Extract city from full address if needed
+                city = extract_city_from_address(row['full_address'])
+                if not city:
+                    logger.warning(f"Could not extract city from address: {row['full_address']}")
+                    continue
+
                 # Create slug from business name
                 slug = slugify(row['name'])
                 
                 # Parse hours
-                hours = parse_hours(row['working_hours'])
+                hours = parse_hours(row.get('working_hours') or row.get('working_hours_old_format'))
                 
                 # Create location object
                 location = Location(
                     business_name=row['name'],
                     address=row['full_address'],
-                    city=row['city'],
-                    state=row['state'],
-                    zip_code=row['zip_code'],
+                    city=city,
+                    state=row['state'][:2] if pd.notna(row['state']) else None,  # Take first 2 chars of state
+                    zip_code=row['full_address'].split()[-1] if pd.notna(row['full_address']) else None,
                     phone=str(row['phone']) if pd.notna(row['phone']) else None,
                     website=str(row['site']) if pd.notna(row['site']) else None,
                     description=row['description'] if pd.notna(row['description']) else None,
@@ -103,6 +133,7 @@ def import_locations():
                 
                 db.session.add(location)
                 processed += 1
+                logger.info(f"Successfully processed: {row['name']}")
                 
                 # Commit every 50 records
                 if processed % 50 == 0:
@@ -111,6 +142,7 @@ def import_locations():
                 
             except Exception as e:
                 logger.error(f"Error processing row for {row.get('name', 'unknown')}: {str(e)}")
+                logger.error(f"Row data: {row.to_dict()}")
                 skipped += 1
                 continue
         
