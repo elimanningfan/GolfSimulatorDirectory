@@ -18,7 +18,7 @@ def parse_hours(hours_str):
     return hours_dict
 
 def create_point(lat, lon):
-    """Create PostgreSQL POINT from latitude and longitude."""
+    """Create a string representation of PostgreSQL POINT from latitude and longitude."""
     if pd.isna(lat) or pd.isna(lon):
         return None
     return f"({lat},{lon})"

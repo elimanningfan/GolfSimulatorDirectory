@@ -37,7 +37,7 @@ def upgrade():
         sa.Column('rating', postgresql.NUMERIC(3,2)),
         sa.Column('reviews_count', sa.Integer()),
         sa.Column('reviews_link', sa.Text()),
-        sa.Column('location', postgresql.POINT()),
+        sa.Column('location', sa.String(50)),  # Store as "(lat,lon)" string
         sa.Column('metadata', postgresql.JSONB()),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('slug'),

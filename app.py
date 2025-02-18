@@ -7,7 +7,8 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from config import Config
 from dotenv import load_dotenv
-from sqlalchemy.dialects.postgresql import UUID, JSONB, POINT, ENUM as PG_ENUM
+from sqlalchemy.dialects.postgresql import UUID, JSONB, ENUM as PG_ENUM
+from sqlalchemy.types import TypeDecorator, String
 import uuid
 
 # Load environment variables
@@ -67,6 +68,22 @@ def not_found_error(error):
 # Google Sheet URL
 SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTaDzWL2-rrIKWpvCjGYiuF9ovmbwYfYSM5q_4YTuwG7_vPOsH7P0uVeVmfzpuQG3igxhW5nnwM3AMS/pub?output=csv"
 
+class POINT(TypeDecorator):
+    impl = String
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return None
+        return str(value)  # Format: "(lat,lon)"
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return None
+        # Remove parentheses and split into lat,lon
+        coords = value.strip('()').split(',')
+        return {'latitude': float(coords[0]), 'longitude': float(coords[1])}
+
 class Location(db.Model):
     __tablename__ = 'locations'
     
@@ -90,7 +107,6 @@ class Location(db.Model):
     metadata = db.Column(JSONB)
 
     def to_dict(self):
-        """Convert location to dictionary."""
         return {
             'id': str(self.id),
             'business_name': self.business_name,
@@ -103,14 +119,13 @@ class Location(db.Model):
             'description': self.description,
             'hours': self.hours,
             'slug': self.slug,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
             'rating': float(self.rating) if self.rating else None,
             'reviews_count': self.reviews_count,
             'reviews_link': self.reviews_link,
-            'location': {
-                'latitude': self.location[0] if self.location else None,
-                'longitude': self.location[1] if self.location else None
-            } if self.location else None,
-            'metadata': self.metadata or {}
+            'location': self.location,
+            'metadata': self.metadata
         }
 
 @app.route('/')
