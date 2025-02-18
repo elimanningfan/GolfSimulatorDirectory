@@ -124,8 +124,8 @@ let map;
 const locationData = [
     {% for location in locations %}
     {
-        lat: Number({{ location.latitude }}),
-        lng: Number({{ location.longitude }}),
+        lat: Number({{ location.location.latitude }}),
+        lng: Number({{ location.location.longitude }}),
         title: {{ location.business_name|tojson|safe }}
     }{% if not loop.last %},{% endif %}
     {% endfor %}

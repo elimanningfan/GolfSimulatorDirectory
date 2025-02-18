@@ -94,11 +94,11 @@
                             height="100%"
                             frameborder="0"
                             style="border:0"
-                            src="https://www.google.com/maps/embed/v1/place?key={{ config.GOOGLE_MAPS_API_KEY }}&q={{ location.latitude }},{{ location.longitude }}"
+                            src="https://www.google.com/maps/embed/v1/place?key={{ config.GOOGLE_MAPS_API_KEY }}&q={{ location.location.latitude }},{{ location.location.longitude }}"
                             allowfullscreen>
                         </iframe>
                     </div>
-                    <a href="https://www.google.com/maps/search/?api=1&query={{ location.latitude }},{{ location.longitude }}"
+                    <a href="https://www.google.com/maps/search/?api=1&query={{ location.location.latitude }},{{ location.location.longitude }}"
                        class="btn btn-primary btn-sm w-100"
                        target="_blank"
                        rel="noopener noreferrer">
