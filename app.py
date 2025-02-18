@@ -54,6 +54,16 @@ migrate = Migrate(app, db)
 app.config['SCHEDULER_API_ENABLED'] = True
 scheduler = APScheduler()
 
+def init_scheduler():
+    """Initialize the scheduler if it's not already running"""
+    if not scheduler.running:
+        scheduler.init_app(app)
+        scheduler.start()
+
+# Only initialize scheduler if not in debug mode
+if not app.debug:
+    init_scheduler()
+
 # Error handlers
 @app.errorhandler(500)
 def internal_error(error):
@@ -378,9 +388,6 @@ if __name__ == '__main__':
         try:
             db.create_all()
             logger.info("Database tables created successfully")
-            # Initialize and start scheduler
-            scheduler.init_app(app)
-            scheduler.start()
         except Exception as e:
             logger.error(f"Error creating database tables: {str(e)}")
     
