@@ -9,11 +9,11 @@ from flask_apscheduler import APScheduler
 import logging
 import sys
 
-# Setup logging
+# Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s %(levelname)s: %(message)s',
-    handlers=[logging.StreamHandler(sys.stdout)]
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler()]
 )
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ if database_url:
         # Replace postgres:// with postgresql:// for SQLAlchemy
         database_url = database_url.replace('postgres://', 'postgresql://', 1)
         app.config['SQLALCHEMY_DATABASE_URI'] = database_url
-        logger.info(f"Using PostgreSQL database: {database_url.split('@')[1]}")  # Log only the host part for security
+        logger.info("Using PostgreSQL database")
     except Exception as e:
         logger.error(f"Error configuring PostgreSQL database URL: {str(e)}")
         # Fallback to SQLite
@@ -54,8 +54,11 @@ try:
     
     # Create tables within app context
     with app.app_context():
-        db.create_all()
-        logger.info("Database tables created successfully")
+        try:
+            db.create_all()
+            logger.info("Database tables created successfully")
+        except Exception as e:
+            logger.error(f"Error creating database tables: {str(e)}")
 except Exception as e:
     logger.error(f"Error initializing database extensions: {str(e)}")
     raise
@@ -64,29 +67,19 @@ except Exception as e:
 app.config['SCHEDULER_API_ENABLED'] = True
 scheduler = APScheduler()
 
-def init_scheduler():
-    """Initialize the scheduler if it's not already running"""
+# Initialize scheduler only in production
+if not app.debug:
     try:
-        if not scheduler.running:
-            scheduler.init_app(app)
-            scheduler.start()
-            logger.info("Scheduler initialized and started successfully")
-        else:
-            logger.info("Scheduler is already running")
+        scheduler.init_app(app)
+        scheduler.start()
+        logger.info("Scheduler initialized and started")
     except Exception as e:
         logger.error(f"Error initializing scheduler: {str(e)}")
-
-# Only initialize scheduler if not in debug mode
-if not app.debug:
-    with app.app_context():
-        init_scheduler()
 
 # Error handlers
 @app.errorhandler(500)
 def internal_error(error):
-    logger.error(f"Internal Server Error: {str(error)}")
-    if hasattr(error, '__cause__') and error.__cause__:
-        logger.error(f"Caused by: {str(error.__cause__)}")
+    logger.error(f"500 error occurred: {str(error)}")
     return render_template('500.html'), 500
 
 @app.errorhandler(404)
@@ -403,4 +396,4 @@ def sync_sheet_command():
 
 if __name__ == '__main__':
     # Run the app
-    app.run(host='0.0.0.0', port=int(os.getenv('PORT', 5000))) 
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5001))) 
