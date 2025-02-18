@@ -22,23 +22,22 @@ app.config.from_object(Config)
 database_url = os.getenv('DATABASE_URL')
 is_railway = os.getenv('RAILWAY_ENVIRONMENT_NAME') is not None
 
-if database_url and is_railway:  # We're on Railway
+if database_url:  # We're on Railway or have a DATABASE_URL set
     try:
         # Replace postgres:// with postgresql:// for SQLAlchemy
         database_url = database_url.replace('postgres://', 'postgresql://', 1)
         app.config['SQLALCHEMY_DATABASE_URI'] = database_url
-        logger.info(f"Using PostgreSQL database at {database_url.split('@')[1] if '@' in database_url else 'unknown host'}")
+        logger.info("Using PostgreSQL database")
     except Exception as e:
-        logger.error(f"Error configuring PostgreSQL database URL: {str(e)}")
-        raise  # In production, we want to fail if database connection fails
+        logger.error(f"Error configuring database URL: {str(e)}")
+        raise
 else:
     # For local development, use SQLite with absolute path
     basedir = os.path.abspath(os.path.dirname(__file__))
     db_path = os.path.join(basedir, "instance", "golf_simulators.db")
-    # Ensure the instance directory exists
     os.makedirs(os.path.dirname(db_path), exist_ok=True)
     app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
-    logger.info(f"Using SQLite database at {db_path}")
+    logger.info("Using SQLite database for development")
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['TEMPLATES_AUTO_RELOAD'] = True
@@ -47,17 +46,6 @@ app.config['TEMPLATES_AUTO_RELOAD'] = True
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 logger.info("Database extensions initialized successfully")
-
-# Run migrations in production
-if is_railway:
-    try:
-        with app.app_context():
-            from flask_migrate import upgrade
-            upgrade()
-            logger.info("Database migrations completed successfully")
-    except Exception as e:
-        logger.error(f"Error running database migrations: {str(e)}")
-        raise  # Fail if migrations fail in production
 
 # Error handlers
 @app.errorhandler(500)
