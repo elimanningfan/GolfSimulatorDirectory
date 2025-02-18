@@ -5,7 +5,18 @@ services:
     buildCommand: |
       pip install -r requirements.txt
       pip install python-slugify
+      # Wait for database to be ready
+      sleep 10
+      # Initialize database schema and migrations
+      export FLASK_APP=app.py
+      python -c "from app import db; from app import app; with app.app_context(): db.create_all()"
+      # Clean up any existing migrations
+      rm -rf migrations
+      # Initialize fresh migrations
+      flask db init
+      flask db migrate -m "initial migration"
       flask db upgrade
+      # Import data
       python import_data.py
     startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 2
     envVars:
