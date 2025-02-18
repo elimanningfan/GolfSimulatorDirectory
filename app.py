@@ -9,7 +9,7 @@ from config import Config
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,  # Changed to DEBUG for more detailed logs
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[logging.StreamHandler()]
 )
@@ -37,6 +37,16 @@ app.config['TEMPLATES_AUTO_RELOAD'] = True
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 logger.info("Database extensions initialized successfully")
+
+@app.route('/health')
+def health_check():
+    try:
+        # Test database connection
+        db.session.execute('SELECT 1')
+        return jsonify({"status": "healthy", "database": "connected"}), 200
+    except Exception as e:
+        logger.error(f"Health check failed: {str(e)}")
+        return jsonify({"status": "unhealthy", "error": str(e)}), 500
 
 # Error handlers
 @app.errorhandler(500)

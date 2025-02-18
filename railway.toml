@@ -3,10 +3,12 @@ builder = "nixpacks"
 buildCommand = "pip install -r requirements.txt"
 
 [deploy]
-startCommand = "flask db upgrade && gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 120"
-healthcheckPath = "/"
-healthcheckTimeout = 100
-restartPolicy = "on-failure:10"
+startCommand = "flask db upgrade && gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 2 --timeout 120 --log-level debug"
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicy = "on-failure:3"
 
 [env]
-PYTHON_VERSION = "3.11" 
+PYTHON_VERSION = "3.11"
+FLASK_ENV = "production"
+FLASK_DEBUG = "1" 
