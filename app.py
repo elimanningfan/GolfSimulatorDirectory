@@ -48,6 +48,17 @@ db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 logger.info("Database extensions initialized successfully")
 
+# Run migrations in production
+if is_railway:
+    try:
+        with app.app_context():
+            from flask_migrate import upgrade
+            upgrade()
+            logger.info("Database migrations completed successfully")
+    except Exception as e:
+        logger.error(f"Error running database migrations: {str(e)}")
+        raise  # Fail if migrations fail in production
+
 # Error handlers
 @app.errorhandler(500)
 def internal_error(error):
