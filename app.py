@@ -189,7 +189,7 @@ def city_detail(city_slug):
         # Query locations for this city
         locations = Location.query.filter(
             Location.city.ilike(city_display),
-            Location.state.ilike(state_display)
+            Location.state == state_display  # Changed from ilike to == for enum
         ).all()
         
         if not locations:
