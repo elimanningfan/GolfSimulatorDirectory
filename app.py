@@ -10,6 +10,8 @@ from dotenv import load_dotenv
 from sqlalchemy.dialects.postgresql import UUID, JSONB, ENUM as PG_ENUM
 from sqlalchemy.types import TypeDecorator, String
 import uuid
+import json
+from slugify import slugify
 
 # Load environment variables
 load_dotenv()
@@ -65,8 +67,8 @@ def internal_error(error):
 def not_found_error(error):
     return render_template('404.html'), 404
 
-# Google Sheet URL
-SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTaDzWL2-rrIKWpvCjGYiuF9ovmbwYfYSM5q_4YTuwG7_vPOsH7P0uVeVmfzpuQG3igxhW5nnwM3AMS/pub?output=csv"
+# Google Sheet URL (public CSV export)
+SHEET_URL = os.getenv('GOOGLE_SHEET_URL', 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ7Zfd9J7uhAhKoHLfqWrjnOVqjGvK9YQVZNFe4CjnQDGqRDi_HHf_ys4fJMmborCNKYxpwqrQHx2QF/pub?output=csv')
 
 class POINT(TypeDecorator):
     impl = String
@@ -233,71 +235,91 @@ def sync_with_google_sheet():
         logger.info("Starting sync with Google Sheet")
         # Read the CSV data from Google Sheets
         df = pd.read_csv(SHEET_URL)
+        logger.info(f"Read {len(df)} rows from Google Sheet")
         
-        # Map the Google Sheet columns to our database columns
-        column_mapping = {
-            'name': 'business_name',
-            'full_address': 'address',
-            'state': 'state',
-            'phone': 'phone',
-            'site': 'website',
-            'description': 'description',
-            'working_hours': 'hours',
-            'rating': 'rating',
-            'reviews': 'reviews_count',
-            'reviews_link': 'reviews_link',
-            'latitude': 'location',
-            'longitude': 'location'
-        }
-        
-        # Rename columns according to our mapping
-        df = df.rename(columns=column_mapping)
-        
-        # Extract city and zip code from full_address
-        df['address'] = df['address'].fillna('')
-        df[['city', 'zip_code']] = df['address'].str.extract(r'(?:.*),\s*(.*?),\s*\w+\s+(\d{5})')
-        
+        # Process each row
         current_time = datetime.utcnow()
         updates = 0
         new_records = 0
         
         for _, row in df.iterrows():
-            # Create slug for the business
-            business_slug = create_slug(row['business_name'])
-            
-            # Check if location exists
-            location = Location.query.filter_by(slug=business_slug).first()
-            
-            # Prepare location data
-            location_data = {
-                'business_name': row['business_name'],
-                'address': row['address'],
-                'city': row['city'],
-                'state': row['state'],
-                'zip_code': str(row['zip_code']),
-                'phone': str(row['phone']) if pd.notna(row['phone']) else None,
-                'website': row['website'] if pd.notna(row['website']) else None,
-                'description': row['description'] if pd.notna(row['description']) else None,
-                'hours': row['hours'] if pd.notna(row['hours']) else None,
-                'rating': float(row['rating']) if pd.notna(row['rating']) else None,
-                'reviews_count': int(row['reviews_count']) if pd.notna(row['reviews_count']) else None,
-                'reviews_link': row['reviews_link'] if pd.notna(row['reviews_link']) else None,
-                'location': row['location'] if pd.notna(row['location']) else None,
-                'updated_at': current_time
-            }
-            
-            if location:
-                # Update existing location
-                for key, value in location_data.items():
-                    setattr(location, key, value)
-                updates += 1
-            else:
-                # Create new location
-                location_data['slug'] = business_slug
-                new_location = Location(**location_data)
-                db.session.add(new_location)
-                new_records += 1
+            try:
+                # Create slug for the business
+                business_slug = slugify(row['name'])
+                
+                # Parse hours
+                hours = None
+                if pd.notna(row.get('working_hours')):
+                    try:
+                        hours = json.loads(row['working_hours'].replace("'", '"'))
+                    except:
+                        hours = row['working_hours']
+                
+                # Create point from lat/lon
+                location_point = None
+                if pd.notna(row.get('latitude')) and pd.notna(row.get('longitude')):
+                    location_point = f"({row['latitude']},{row['longitude']})"
+                
+                # Extract city from address
+                city = None
+                if pd.notna(row.get('full_address')):
+                    parts = row['full_address'].split(',')
+                    if len(parts) >= 2:
+                        city = parts[1].strip().split()[0]
+                
+                # Prepare location data
+                location_data = {
+                    'business_name': row['name'],
+                    'address': row['full_address'] if pd.notna(row.get('full_address')) else None,
+                    'city': city,
+                    'state': row['state'].upper()[:2] if pd.notna(row.get('state')) else None,
+                    'zip_code': row['full_address'].split()[-1] if pd.notna(row.get('full_address')) else None,
+                    'phone': str(row['phone']) if pd.notna(row.get('phone')) else None,
+                    'website': str(row['site']) if pd.notna(row.get('site')) else None,
+                    'description': row['description'] if pd.notna(row.get('description')) else None,
+                    'hours': hours,
+                    'rating': float(row['rating']) if pd.notna(row.get('rating')) else None,
+                    'reviews_count': int(row['reviews']) if pd.notna(row.get('reviews')) else None,
+                    'reviews_link': str(row['reviews_link']) if pd.notna(row.get('reviews_link')) else None,
+                    'location': location_point,
+                    'location_metadata': {
+                        'type': row['type'] if pd.notna(row.get('type')) else None,
+                        'subtypes': row['subtypes'].split(',') if pd.notna(row.get('subtypes')) else [],
+                        'photos_count': int(row['photos_count']) if pd.notna(row.get('photos_count')) else 0,
+                        'place_id': row['place_id'] if pd.notna(row.get('place_id')) else None,
+                        'google_id': row['google_id'] if pd.notna(row.get('google_id')) else None,
+                        'last_synced': current_time.isoformat()
+                    },
+                    'updated_at': current_time
+                }
+                
+                # Check if location exists
+                location = Location.query.filter_by(slug=business_slug).first()
+                
+                if location:
+                    # Update existing location
+                    for key, value in location_data.items():
+                        setattr(location, key, value)
+                    updates += 1
+                    logger.info(f"Updated: {row['name']}")
+                else:
+                    # Create new location
+                    location_data['slug'] = business_slug
+                    new_location = Location(**location_data)
+                    db.session.add(new_location)
+                    new_records += 1
+                    logger.info(f"Added new: {row['name']}")
+                
+                # Commit every 10 records
+                if (updates + new_records) % 10 == 0:
+                    db.session.commit()
+                    logger.info(f"Committed batch. Updates: {updates}, New: {new_records}")
+                
+            except Exception as e:
+                logger.error(f"Error processing row for {row.get('name', 'unknown')}: {str(e)}")
+                continue
         
+        # Final commit
         db.session.commit()
         logger.info(f"Sync completed. Updated {updates} records, added {new_records} new records.")
         return True
@@ -309,12 +331,11 @@ def sync_with_google_sheet():
 
 @app.cli.command("sync-sheet")
 def sync_sheet_command():
-    """Manually trigger Google Sheet sync."""
-    logger.info("Starting manual sync with Google Sheet")
+    """Sync database with Google Sheet data"""
     if sync_with_google_sheet():
-        logger.info("Manual sync completed successfully")
+        print("Sync completed successfully")
     else:
-        logger.error("Manual sync failed")
+        print("Sync failed")
 
 if __name__ == '__main__':
     app.run(debug=True) 
