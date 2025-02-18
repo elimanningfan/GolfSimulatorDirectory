@@ -2,11 +2,26 @@ import pandas as pd
 from app import app, db, Location
 from slugify import slugify
 import re
+import json
+from sqlalchemy import text
+from datetime import datetime
 
-def extract_zip_code(address):
-    # Try to extract zip code from address
-    zip_match = re.search(r'(\d{5}(?:-\d{4})?)', address)
-    return zip_match.group(1) if zip_match else ''
+def parse_hours(hours_str):
+    """Convert hours string to JSONB format."""
+    if not hours_str or pd.isna(hours_str):
+        return None
+        
+    hours_dict = {}
+    for day_hours in hours_str.split('|'):
+        day, hours = day_hours.split(':')
+        hours_dict[day] = hours.strip()
+    return hours_dict
+
+def create_point(lat, lon):
+    """Create PostgreSQL POINT from latitude and longitude."""
+    if pd.isna(lat) or pd.isna(lon):
+        return None
+    return f"({lat},{lon})"
 
 def import_locations():
     with app.app_context():
@@ -14,12 +29,12 @@ def import_locations():
         df = pd.read_csv('data/locations.csv')
         
         # Clear existing data
-        Location.query.delete()
+        db.session.execute(text('TRUNCATE TABLE locations CASCADE'))
         
         # Process each row
         for _, row in df.iterrows():
             # Skip rows that are clearly example data or invalid
-            if pd.isna(row['state']) or row['state'] == 'CA' or len(row['state']) > 20:
+            if pd.isna(row['state']) or row['state'] not in ['OR', 'WA', 'CA', 'ID']:
                 continue
             
             # Skip if essential fields are missing
@@ -30,7 +45,8 @@ def import_locations():
             slug = slugify(row['name'])
             
             # Extract zip code from full_address
-            zip_code = extract_zip_code(row['full_address'])
+            zip_match = re.search(r'(\d{5}(?:-\d{4})?)', row['full_address'])
+            zip_code = zip_match.group(1) if zip_match else ''
             
             # Try to extract city from full address
             try:
@@ -38,23 +54,42 @@ def import_locations():
             except:
                 city = ''
             
+            # Parse hours into JSONB
+            hours = parse_hours(row['working_hours_old_format'])
+            
+            # Create POINT from lat/lon
+            location = create_point(
+                float(row['latitude']) if pd.notna(row['latitude']) else None,
+                float(row['longitude']) if pd.notna(row['longitude']) else None
+            )
+            
+            # Create metadata JSONB
+            metadata = {
+                'type': row['type'] if pd.notna(row['type']) else None,
+                'subtypes': row['subtypes'].split(',') if pd.notna(row['subtypes']) else [],
+                'photos_count': int(row['photos_count']) if pd.notna(row['photos_count']) else 0,
+                'place_id': row['place_id'] if pd.notna(row['place_id']) else None,
+                'google_id': row['google_id'] if pd.notna(row['google_id']) else None,
+                'last_synced': datetime.utcnow().isoformat()
+            }
+            
             # Create location object
             location = Location(
-                business_name=row['name'][:500],  # Truncate if too long
-                address=row['full_address'][:500],
-                city=city[:200],
-                state=row['state'][:100],
-                zip_code=zip_code[:50],
-                phone=str(row['phone'])[:50] if pd.notna(row['phone']) else None,
-                website=str(row['site'])[:500] if pd.notna(row['site']) else None,
+                business_name=row['name'],
+                address=row['full_address'],
+                city=city,
+                state=row['state'],
+                zip_code=zip_code,
+                phone=str(row['phone']) if pd.notna(row['phone']) else None,
+                website=str(row['site']) if pd.notna(row['site']) else None,
                 description=row['description'] if pd.notna(row['description']) else None,
-                hours=row['working_hours_old_format'][:1000] if pd.notna(row['working_hours_old_format']) else None,
-                slug=slug[:500],
+                hours=hours,
+                slug=slug,
                 rating=float(row['rating']) if pd.notna(row['rating']) else None,
-                reviews=int(row['reviews']) if pd.notna(row['reviews']) else None,
-                reviews_link=str(row['reviews_link'])[:1000] if pd.notna(row['reviews_link']) else None,
-                latitude=float(row['latitude']) if pd.notna(row['latitude']) else None,
-                longitude=float(row['longitude']) if pd.notna(row['longitude']) else None
+                reviews_count=int(row['reviews']) if pd.notna(row['reviews']) else None,
+                reviews_link=str(row['reviews_link']) if pd.notna(row['reviews_link']) else None,
+                location=location,
+                metadata=metadata
             )
             db.session.add(location)
         

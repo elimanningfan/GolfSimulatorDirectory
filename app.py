@@ -6,6 +6,12 @@ from flask import Flask, render_template, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from config import Config
+from dotenv import load_dotenv
+from sqlalchemy.dialects.postgresql import UUID, JSONB, POINT, ENUM as PG_ENUM
+import uuid
+
+# Load environment variables
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(
@@ -62,29 +68,31 @@ def not_found_error(error):
 SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTaDzWL2-rrIKWpvCjGYiuF9ovmbwYfYSM5q_4YTuwG7_vPOsH7P0uVeVmfzpuQG3igxhW5nnwM3AMS/pub?output=csv"
 
 class Location(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    business_name = db.Column(db.String(200), nullable=False)
-    address = db.Column(db.String(200), nullable=False)
-    city = db.Column(db.String(100), nullable=False)
-    state = db.Column(db.String(50), nullable=False)
-    zip_code = db.Column(db.String(20), nullable=False)
+    __tablename__ = 'locations'
+    
+    id = db.Column(UUID(as_uuid=True), primary_key=True, server_default=db.text('gen_random_uuid()'))
+    business_name = db.Column(db.Text, nullable=False)
+    address = db.Column(db.Text, nullable=False)
+    city = db.Column(db.Text, nullable=False)
+    state = db.Column(PG_ENUM('OR', 'WA', 'CA', 'ID', name='state_code'), nullable=False)
+    zip_code = db.Column(db.String(10), nullable=False)
     phone = db.Column(db.String(20))
-    website = db.Column(db.String(200))
+    website = db.Column(db.Text)
     description = db.Column(db.Text)
-    hours = db.Column(db.String(500))
-    slug = db.Column(db.String(200), unique=True, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    rating = db.Column(db.Float)
-    reviews = db.Column(db.Integer)
-    reviews_link = db.Column(db.String(500))
-    latitude = db.Column(db.Float)
-    longitude = db.Column(db.Float)
-    membership_info = db.Column(db.Text)
-    last_synced_at = db.Column(db.DateTime, default=datetime.utcnow)
+    hours = db.Column(JSONB)
+    slug = db.Column(db.Text, nullable=False, unique=True)
+    created_at = db.Column(db.TIMESTAMP(timezone=True), nullable=False, server_default=db.text('CURRENT_TIMESTAMP'))
+    updated_at = db.Column(db.TIMESTAMP(timezone=True), nullable=False, server_default=db.text('CURRENT_TIMESTAMP'))
+    rating = db.Column(db.Numeric(3,2))
+    reviews_count = db.Column(db.Integer)
+    reviews_link = db.Column(db.Text)
+    location = db.Column(POINT)
+    metadata = db.Column(JSONB)
 
     def to_dict(self):
+        """Convert location to dictionary."""
         return {
-            'id': self.id,
+            'id': str(self.id),
             'business_name': self.business_name,
             'address': self.address,
             'city': self.city,
@@ -95,12 +103,14 @@ class Location(db.Model):
             'description': self.description,
             'hours': self.hours,
             'slug': self.slug,
-            'rating': self.rating,
-            'reviews': self.reviews,
+            'rating': float(self.rating) if self.rating else None,
+            'reviews_count': self.reviews_count,
             'reviews_link': self.reviews_link,
-            'latitude': self.latitude,
-            'longitude': self.longitude,
-            'membership_info': self.membership_info
+            'location': {
+                'latitude': self.location[0] if self.location else None,
+                'longitude': self.location[1] if self.location else None
+            } if self.location else None,
+            'metadata': self.metadata or {}
         }
 
 @app.route('/')
@@ -219,10 +229,10 @@ def sync_with_google_sheet():
             'description': 'description',
             'working_hours': 'hours',
             'rating': 'rating',
-            'reviews': 'reviews',
+            'reviews': 'reviews_count',
             'reviews_link': 'reviews_link',
-            'latitude': 'latitude',
-            'longitude': 'longitude'
+            'latitude': 'location',
+            'longitude': 'location'
         }
         
         # Rename columns according to our mapping
@@ -255,11 +265,10 @@ def sync_with_google_sheet():
                 'description': row['description'] if pd.notna(row['description']) else None,
                 'hours': row['hours'] if pd.notna(row['hours']) else None,
                 'rating': float(row['rating']) if pd.notna(row['rating']) else None,
-                'reviews': int(row['reviews']) if pd.notna(row['reviews']) else None,
+                'reviews_count': int(row['reviews_count']) if pd.notna(row['reviews_count']) else None,
                 'reviews_link': row['reviews_link'] if pd.notna(row['reviews_link']) else None,
-                'latitude': float(row['latitude']) if pd.notna(row['latitude']) else None,
-                'longitude': float(row['longitude']) if pd.notna(row['longitude']) else None,
-                'last_synced_at': current_time
+                'location': row['location'] if pd.notna(row['location']) else None,
+                'updated_at': current_time
             }
             
             if location:
