@@ -20,24 +20,12 @@ app.config.from_object(Config)
 
 # Database configuration
 database_url = os.getenv('DATABASE_URL')
-is_railway = os.getenv('RAILWAY_ENVIRONMENT_NAME') is not None
 
-if database_url:  # We're on Railway or have a DATABASE_URL set
+if database_url:  # We're in production
     try:
-        # Replace postgres:// with postgresql:// for SQLAlchemy
         database_url = database_url.replace('postgres://', 'postgresql://', 1)
         app.config['SQLALCHEMY_DATABASE_URI'] = database_url
         logger.info("Using PostgreSQL database")
-        
-        # Run migrations in production
-        with app.app_context():
-            try:
-                from flask_migrate import upgrade
-                upgrade()
-                logger.info("Database migrations completed successfully")
-            except Exception as e:
-                logger.error(f"Error running database migrations: {str(e)}")
-                raise
     except Exception as e:
         logger.error(f"Error configuring database URL: {str(e)}")
         raise
